@@ -67,5 +67,5 @@ deploy:
     artifact: '%BIN%'
     draft: false
     prerelease: true
-    auth_token: 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
-       # secure: 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
+    auth_token: 
+       secure: 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
