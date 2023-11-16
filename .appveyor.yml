@@ -62,7 +62,7 @@ artifacts:
 environment:
   global:
     GITHUB_TOKEN:
-      secure: git_token
+      secure: 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
 deploy:
   - provider: GitHub
     on:
