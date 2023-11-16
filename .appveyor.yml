@@ -60,7 +60,7 @@ artifacts:
     name: '%BIN%'
 
 deploy:
-  - provider: GitHubRelease
+  - provider: GitHub
     on:
       branch: master
     release: continuous
