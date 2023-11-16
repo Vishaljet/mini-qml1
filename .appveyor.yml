@@ -68,4 +68,4 @@ deploy:
     draft: false
     prerelease: true
     auth_token: 
-       secure: github_token
+       secure: git_token
