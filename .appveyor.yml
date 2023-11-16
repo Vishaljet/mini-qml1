@@ -60,12 +60,12 @@ artifacts:
     name: '%BIN%'
 
 deploy:
-  - provider: GitHub
+  - provider: GitHubRelease
     on:
       branch: master
     release: continuous
     artifact: '%BIN%'
     draft: false
     prerelease: true
-    auth_token:
-      secure: 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
+    auth_token: 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
+       # secure: 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
