@@ -59,10 +59,7 @@ artifacts:
   - path: '%BIN%_%CONFIGURATION%.zip'
     name: '%BIN%'
 
-environment:
-  global:
-    GITHUB_TOKEN:
-      secure: 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
+
 deploy:
   - provider: GitHub
     on:
@@ -72,4 +69,4 @@ deploy:
     draft: false
     prerelease: true
     auth_token: 
-       secure: $(GITHUB_TOKEN)
+       secure:GITHUB_TOKEN
