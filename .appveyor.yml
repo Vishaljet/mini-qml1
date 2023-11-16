@@ -68,4 +68,4 @@ deploy:
     draft: false
     prerelease: true
     auth_token: 
-       secure: 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
+       secure: github_token
