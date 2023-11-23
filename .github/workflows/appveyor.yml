@@ -24,16 +24,15 @@ jobs:
 
     - name: Set up MSVC environment
       run: |
-        $env:commit = $env:GITHUB_SHA.Substring(0, 7)
-        $env:version = "${env:GITHUB_REF}-$env:GITHUB_RUN_NUMBER-$env:commit"
-        Update-AppveyorBuild -Version $env:version
-        Set-Variable -Name "MSVC_VERSION" -Value "19"
-        Set-Variable -Name "RUNTIME_LINKAGE" -Value "static"
-        Set-Variable -Name "QT_VERSION" -Value "5.15"
-        Set-Variable -Name "QT_LINKAGE" -Value "static"
-        Set-Variable -Name "COVERITY_BUILD_CANDIDATE" -Value "True"
-        Set-Variable -Name "QTDIR" -Value "C:\Qt\${env:QT_VERSION}\msvc2019_64"
-        Set-Variable -Name "PRJLIBS" -Value "VCRUNTIME140.dll MSVCP140.dll ucrtbased.dll"
+      COMMIT: ${{ github.sha }}
+      VERSION: ${{ github.ref }}-${{ github.run_number }}-${{ github.sha:0:7 }}
+      MSVC_VERSION: 19
+      RUNTIME_LINKAGE: static
+      QT_VERSION: 5.15
+      QT_LINKAGE: static
+      COVERITY_BUILD_CANDIDATE: True
+      QTDIR: C:\Qt\${{ env.QT_VERSION }}\msvc2019_64
+      PRJLIBS: VCRUNTIME140.dll MSVCP140.dll ucrtbased.dll
       shell: powershell
 
     - name: Install dependencies
