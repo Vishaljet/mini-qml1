@@ -1,1 +1,84 @@
+name: Build and Deploy
 
+on:
+  push:
+    branches:
+      - main
+
+env:
+  QTDIR: C:\Qt\5.15\msvc2019_64
+  PRJLIBDIR: C:\Windows\SysWOW64
+  BIN: mini-qml
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        configuration: ['release', 'debug']
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up MSVC environment
+      run: |
+        $env:commit = $env:GITHUB_SHA.Substring(0, 7)
+        $env:version = "${env:GITHUB_REF}-$env:GITHUB_RUN_NUMBER-$env:commit"
+        Update-AppveyorBuild -Version $env:version
+        Set-Variable -Name "MSVC_VERSION" -Value "19"
+        Set-Variable -Name "RUNTIME_LINKAGE" -Value "static"
+        Set-Variable -Name "QT_VERSION" -Value "5.15"
+        Set-Variable -Name "QT_LINKAGE" -Value "static"
+        Set-Variable -Name "COVERITY_BUILD_CANDIDATE" -Value "True"
+        Set-Variable -Name "QTDIR" -Value "C:\Qt\${env:QT_VERSION}\msvc2019_64"
+        Set-Variable -Name "PRJLIBS" -Value "VCRUNTIME140.dll MSVCP140.dll ucrtbased.dll"
+      shell: powershell
+
+    - name: Install dependencies
+      run: |
+        $env:PATH = "${env:QTDIR}\bin;$env:PATH"
+        qmake -v
+        set BIN=mini-qml
+        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
+      shell: powershell
+
+    - name: Prepare build directory
+      run: |
+        mkdir $env:GITHUB_WORKSPACE-build
+        qmake -o $env:GITHUB_WORKSPACE-build -r -Wall -Wlogic -Wparser CONFIG+=$env:configuration $env:GITHUB_WORKSPACE
+      shell: powershell
+
+    - name: Build project
+      run: |
+        cd $env:GITHUB_WORKSPACE-build
+        nmake
+        dir /b /s *.exe
+      shell: powershell
+
+    - name: Package and Deploy
+      run: |
+        dir /b /s *.exe
+        mkdir deploy
+        copy $env:GITHUB_WORKSPACE-build\$env:configuration\$env:BIN.exe deploy\$env:BIN.exe
+        windeployqt --qmldir $env:GITHUB_WORKSPACE/qml --$env:configuration deploy/$env:BIN.exe --verbose=2
+        foreach ($lib in $env:PRJLIBS.split(" ")) {
+          copy $env:PRJLIBDIR\$lib deploy\
+        }
+        7z a -tzip $env:BIN_$env:configuration.zip deploy -r
+        copy $env:GITHUB_WORKSPACE-build\$env:BIN_$env:configuration.zip $env:GITHUB_WORKSPACE\$env:BIN_$env:configuration.zip
+        dir /b /s *.zip
+      shell: powershell
+
+  deploy:
+    needs: build
+    runs-on: windows-latest
+
+    steps:
+    - name: Deploy to GitHub Releases
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ${{ env.BIN }}_${{ matrix.configuration }}.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
