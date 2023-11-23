@@ -18,12 +18,7 @@ jobs:
       matrix:
         configuration: ['release', 'debug']
 
-    steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
-
-    - name: Set up MSVC environment
-      run: |
+    env:
       COMMIT: ${{ github.sha }}
       VERSION: ${{ github.ref }}-${{ github.run_number }}-${{ github.sha:0:7 }}
       MSVC_VERSION: 19
@@ -33,7 +28,18 @@ jobs:
       COVERITY_BUILD_CANDIDATE: True
       QTDIR: C:\Qt\${{ env.QT_VERSION }}\msvc2019_64
       PRJLIBS: VCRUNTIME140.dll MSVCP140.dll ucrtbased.dll
-      shell: powershell
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v2
+
+    - name: Set up MSVC environment
+      run: |
+        $env:COMMIT = $env:GITHUB_SHA.Substring(0, 7)
+        $env:VERSION = "${env:GITHUB_REF}-${env:GITHUB_RUN_NUMBER}-${env:COMMIT}"
+        echo "COMMIT=${env:COMMIT}" >> $GITHUB_ENV
+        echo "VERSION=${env:VERSION}" >> $GITHUB_ENV
+      shell: pwsh
 
     - name: Install dependencies
       run: |
@@ -45,13 +51,13 @@ jobs:
 
     - name: Prepare build directory
       run: |
-        mkdir $env:GITHUB_WORKSPACE-build
-        qmake -o $env:GITHUB_WORKSPACE-build -r -Wall -Wlogic -Wparser CONFIG+=$env:configuration $env:GITHUB_WORKSPACE
+        mkdir $GITHUB_WORKSPACE-build
+        qmake -o $GITHUB_WORKSPACE-build -r -Wall -Wlogic -Wparser CONFIG+=$env:configuration $GITHUB_WORKSPACE
       shell: powershell
 
     - name: Build project
       run: |
-        cd $env:GITHUB_WORKSPACE-build
+        cd $GITHUB_WORKSPACE-build
         nmake
         dir /b /s *.exe
       shell: powershell
@@ -60,13 +66,13 @@ jobs:
       run: |
         dir /b /s *.exe
         mkdir deploy
-        copy $env:GITHUB_WORKSPACE-build\$env:configuration\$env:BIN.exe deploy\$env:BIN.exe
-        windeployqt --qmldir $env:GITHUB_WORKSPACE/qml --$env:configuration deploy/$env:BIN.exe --verbose=2
-        foreach ($lib in $env:PRJLIBS.split(" ")) {
-          copy $env:PRJLIBDIR\$lib deploy\
+        copy $GITHUB_WORKSPACE-build\${env:configuration}\${env:BIN}.exe deploy\${env:BIN}.exe
+        windeployqt --qmldir $GITHUB_WORKSPACE/qml --${env:configuration} deploy/${env:BIN}.exe --verbose=2
+        foreach ($lib in ${env:PRJLIBS}.split(" ")) {
+          copy ${env:PRJLIBDIR}\$lib deploy\
         }
-        7z a -tzip $env:BIN_$env:configuration.zip deploy -r
-        copy $env:GITHUB_WORKSPACE-build\$env:BIN_$env:configuration.zip $env:GITHUB_WORKSPACE\$env:BIN_$env:configuration.zip
+        7z a -tzip ${env:BIN}_${env:configuration}.zip deploy -r
+        copy $GITHUB_WORKSPACE-build\${env:BIN}_${env:configuration}.zip $GITHUB_WORKSPACE\${env:BIN}_${env:configuration}.zip
         dir /b /s *.zip
       shell: powershell
 
