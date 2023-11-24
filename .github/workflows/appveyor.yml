@@ -5,22 +5,19 @@ on:
     branches:
       - master
 
-env:
-  QTDIR: C:\Qt\5.15\msvc2019_64
-  PRJLIBDIR: C:\Windows\SysWOW64
-  BIN: mini-qml
-
 jobs:
   build:
     runs-on: windows-latest
 
     strategy:
       matrix:
-        configuration: ['release', 'debug']
+        config:
+        - name: 'release'
+          CONFIGURATION: 'release'
+        - name: 'debug'
+          CONFIGURATION: 'debug'
 
     env:
-      COMMIT: ${{ github.sha }}
-      VERSION: ${{ github.ref }}-${{ github.run_number }}-${{ github.sha:0:7 }}
       MSVC_VERSION: 19
       RUNTIME_LINKAGE: static
       QT_VERSION: 5.15
@@ -28,62 +25,57 @@ jobs:
       COVERITY_BUILD_CANDIDATE: True
       QTDIR: C:\Qt\${{ env.QT_VERSION }}\msvc2019_64
       PRJLIBS: VCRUNTIME140.dll MSVCP140.dll ucrtbased.dll
+      CONFIGURATION: ${{ matrix.config }}
+      BIN: mini-qml
 
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v2
+      - name: Set up Qt environment
+        run: |
+          $env:QTDIR = "${{ env.QTDIR }}"
+          ${{ env.QTDIR }}\bin\qtenv2.bat
+          qmake -v
 
-    - name: Set up MSVC environment
-      run: |
-        $env:COMMIT = $env:GITHUB_SHA.Substring(0, 7)
-        $env:VERSION = "${env:GITHUB_REF}-${env:GITHUB_RUN_NUMBER}-${env:COMMIT}"
-        echo "COMMIT=${env:COMMIT}" >> $GITHUB_ENV
-        echo "VERSION=${env:VERSION}" >> $GITHUB_ENV
-      shell: pwsh
+      - name: Set up Visual Studio environment
+        run: |
+          set PRJLIBDIR=%WINDIR%\SysWOW64
+          set QTDIR
+          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
 
-    - name: Install dependencies
-      run: |
-        $env:PATH = "${env:QTDIR}\bin;$env:PATH"
-        qmake -v
-        set BIN=mini-qml
-        call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" amd64
-      shell: powershell
+      - name: Prepare build directory
+        run: |
+          cd ${{ env.APPVEYOR_BUILD_FOLDER }}
+          mkdir ${{ env.APPVEYOR_BUILD_FOLDER }}-build
+          qmake -o ${{ env.APPVEYOR_BUILD_FOLDER }}-build -r -Wall -Wlogic -Wparser CONFIG+=${{ env.CONFIGURATION }} ${{ env.APPVEYOR_BUILD_FOLDER }}
 
-    - name: Prepare build directory
-      run: |
-        mkdir $GITHUB_WORKSPACE-build
-        qmake -o $GITHUB_WORKSPACE-build -r -Wall -Wlogic -Wparser CONFIG+=$env:configuration $GITHUB_WORKSPACE
-      shell: powershell
+      - name: Build project
+        run: |
+          cd ${{ env.APPVEYOR_BUILD_FOLDER }}-build
+          nmake
+          dir /b /s *.exe
 
-    - name: Build project
-      run: |
-        cd $GITHUB_WORKSPACE-build
-        nmake
-        dir /b /s *.exe
-      shell: powershell
-
-    - name: Package and Deploy
-      run: |
-        dir /b /s *.exe
-        mkdir deploy
-        copy $GITHUB_WORKSPACE-build\${env:configuration}\${env:BIN}.exe deploy\${env:BIN}.exe
-        windeployqt --qmldir $GITHUB_WORKSPACE/qml --${env:configuration} deploy/${env:BIN}.exe --verbose=2
-        foreach ($lib in ${env:PRJLIBS}.split(" ")) {
-          copy ${env:PRJLIBDIR}\$lib deploy\
-        }
-        7z a -tzip ${env:BIN}_${env:configuration}.zip deploy -r
-        copy $GITHUB_WORKSPACE-build\${env:BIN}_${env:configuration}.zip $GITHUB_WORKSPACE\${env:BIN}_${env:configuration}.zip
-        dir /b /s *.zip
-      shell: powershell
+      - name: After build steps
+        run: |
+          dir /b /s *.exe
+          mkdir deploy
+          copy ${{ env.APPVEYOR_BUILD_FOLDER }}-build\${{ env.CONFIGURATION }}\${{ env.BIN }}.exe deploy\${{ env.BIN }}.exe
+          windeployqt --qmldir ${{ env.APPVEYOR_BUILD_FOLDER }}/qml --${{ env.CONFIGURATION }} deploy/${{ env.BIN }}.exe --verbose=2
+          for %%I in (${{ env.PRJLIBS }}) do copy ${{ env.PRJLIBDIR }}\%%I deploy\
+          7z a -tzip ${{ env.BIN }}_${{ env.CONFIGURATION }}.zip deploy -r
+          copy ${{ env.APPVEYOR_BUILD_FOLDER }}-build\${{ env.BIN }}_${{ env.CONFIGURATION }}.zip ${{ env.APPVEYOR_BUILD_FOLDER }}\${{ env.BIN }}_${{ env.CONFIGURATION }}.zip
+          dir /b /s *.zip
 
   deploy:
     needs: build
-    runs-on: windows-latest
-
+    runs-on: ubuntu-latest
     steps:
-    - name: Deploy to GitHub Releases
-      uses: softprops/action-gh-release@v1
-      with:
-        files: ${{ env.BIN }}_${{ matrix.configuration }}.zip
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        with:
+          files: |
+            ${{ env.APPVEYOR_BUILD_FOLDER }}/${{ env.BIN }}_${{ env.CONFIGURATION }}.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
